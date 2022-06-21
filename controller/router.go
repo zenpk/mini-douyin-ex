@@ -19,26 +19,26 @@ func InitRouter(r *gin.Engine) {
 	apiRouter.GET("/user/", AuthMiddleware(), handler.UserInfo)
 
 	// video
-	apiRouter.GET("/feed/", handler.Feed)
+	apiRouter.GET("/feed/", AuthMiddlewareAlt(), handler.Feed) // 视频流比较特殊，是否登录需要做不同处理
 	apiRouter.POST("/publish/action/", AuthMiddleware(), handler.Publish)
-	apiRouter.GET("/publish/list/", AuthMiddleware(), handler.PublishList)
+	apiRouter.GET("/publish/list/", AuthMiddleware(), handler.PublishList) // ?
 
 	// 以下功能均需使用 JWT 中间件
 	authRouter := apiRouter.Group("/")
 	authRouter.Use(AuthMiddleware())
 	{
 		// favorite
-		apiRouter.POST("/favorite/action/", handler.FavoriteAction)
-		apiRouter.GET("/favorite/list/", handler.FavoriteList)
+		authRouter.POST("/favorite/action/", handler.FavoriteAction)
+		authRouter.GET("/favorite/list/", handler.FavoriteList)
 
 		// comment
-		apiRouter.POST("/comment/action/", handler.CommentAction)
-		apiRouter.GET("/comment/list/", handler.CommentList)
+		authRouter.POST("/comment/action/", handler.CommentAction)
+		authRouter.GET("/comment/list/", handler.CommentList)
 
 		// relation
-		apiRouter.POST("/relation/action/", handler.RelationAction)
-		apiRouter.GET("/relation/follow/list/", handler.FollowList)
-		apiRouter.GET("/relation/follower/list/", handler.FollowerList)
+		authRouter.POST("/relation/action/", handler.RelationAction)
+		authRouter.GET("/relation/follow/list/", handler.FollowList)
+		authRouter.GET("/relation/follower/list/", handler.FollowerList)
 	}
 
 }

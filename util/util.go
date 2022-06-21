@@ -18,24 +18,32 @@ func QueryUserId(c *gin.Context) int64 {
 	if str == "" {
 		str = c.PostForm("user_id")
 	}
-	id, _ := strconv.ParseInt(str, 10, 64)
+	id, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }
 
-func QueryVideoId(c *gin.Context) int64 {
-	str := c.Query("video_id")
-	if str == "" {
-		str = c.PostForm("video_id")
+func GetTokenUserId(c *gin.Context) int64 {
+	value, exists := c.Get("token_user_id")
+	if !exists {
+		return 0
+	} else {
+		id := value.(int64)
+		return id
 	}
-	id, _ := strconv.ParseInt(str, 10, 64)
-	return id
+
 }
 
-func QueryCommentId(c *gin.Context) int64 {
-	str := c.Query("comment_id")
+func QueryId(c *gin.Context, key string) int64 {
+	str := c.Query(key)
 	if str == "" {
-		str = c.PostForm("comment_id")
+		str = c.PostForm(key)
 	}
-	id, _ := strconv.ParseInt(str, 10, 64)
+	id, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }

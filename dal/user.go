@@ -12,7 +12,6 @@ type User struct {
 	FollowCount   int64  `json:"follow_count"`
 	FollowerCount int64  `json:"follower_count"`
 	IsFollow      bool   `json:"is_follow" gorm:"-:all"` // IsFollow 是根据 relations 表查询得到的，不需要存储
-	Token         string `gorm:"unique;not null"`
 }
 
 // bCryptPassword 对密码加密
@@ -51,4 +50,13 @@ func Login(name, password string) (id int64, err error) {
 	} else {
 		return 0, errors.New("用户不存在")
 	}
+}
+
+// GetUserById 根据 id 查找用户，并判断 id 是否有效
+func GetUserById(id int64) (User, error) {
+	var user User
+	if DB.Where("id=?", id).First(&user).RowsAffected > 0 {
+		return user, nil
+	}
+	return user, errors.New("无效的用户 id")
 }
