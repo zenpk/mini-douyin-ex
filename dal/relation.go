@@ -74,7 +74,7 @@ func GetFollowList(userId int64) ([]int64, error) {
 	}
 	followIdList := make([]int64, len(followList))
 	for i, f := range followList {
-		followIdList[i] = f.UserAId
+		followIdList[i] = f.UserBId
 	}
 	return followIdList, nil
 }

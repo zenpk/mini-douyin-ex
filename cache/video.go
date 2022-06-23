@@ -59,7 +59,6 @@ func WriteFeed(latestTime int64) error {
 
 // WritePublishList 根据用户 id 从 MySQL 中读取投稿信息
 // 根据用户 id 建立 set
-// 由于前端不从投稿列表中查看视频，因此不用查找作者信息
 func WritePublishList(userId int64) ([]dal.Video, error) {
 	// 数据库读取投稿信息
 	videoList, err := dal.GetPublishList(userId)
@@ -152,6 +151,9 @@ func ReadFeed(latestTime int64) ([]dal.Video, error) {
 	if err != nil {
 		return []dal.Video{}, err
 	}
+	if err := RDB.Expire(CTX, "feed", config.RedisExp).Err(); err != nil {
+		return []dal.Video{}, err
+	}
 	//if len(videoIdList) < config.MaxFeedSize { // 比较少见的场景，即用户请求的视频流 id 超出了缓存中的范围
 	//	if !(len(videoIdList) != 0 && videoIdList[len(videoIdList)-1] == "0") { // 非视频总数不够的情况
 	//	}
@@ -173,7 +175,6 @@ func ReadFeed(latestTime int64) ([]dal.Video, error) {
 
 // ReadPublishList 读取用户投稿视频
 // userA 是当前登录用户，userB 是查看的用户
-// 由于前端无法从投稿页面查看视频，因此不用查找作者信息
 func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
 	key := PublishListKey(userBId)
 	n, err := RDB.Exists(CTX, key).Result()
@@ -189,6 +190,16 @@ func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
 		for i, video := range videoList {
 			// 查找当前登录用户是否点过赞
 			videoList[i].IsFavorite, err = ReadFavorite(userAId, video.Id)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找视频对应的用户
+			videoList[i].Author, err = ReadUser(videoList[i].UserId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找是否关注了这个用户
+			videoList[i].Author.IsFollow, err = ReadRelation(userAId, videoList[i].UserId)
 			if err != nil {
 				return []dal.Video{}, err
 			}
@@ -217,6 +228,16 @@ func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
 			if err != nil {
 				return []dal.Video{}, err
 			}
+			// 查找视频对应的用户
+			video.Author, err = ReadUser(video.UserId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找是否关注了这个用户
+			video.Author.IsFollow, err = ReadRelation(userAId, video.UserId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
 			videoList = append(videoList, video)
 		}
 	}
@@ -224,16 +245,30 @@ func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
 }
 
 // AddVideo 将新发布的视频分别写入 Redis 的 feed 和视频 hash 中
+// 同时还需要写入用户的投稿列表中
 // 由于发布视频的用户一定是登录了的用户，因此不用重新向 Redis 中写入作者
 func AddVideo(video dal.Video) error {
+	// 写入 feed
 	if err := RDB.ZAdd(CTX, "feed", &redis.Z{Score: float64(video.CreateTime), Member: video.Id}).Err(); err != nil {
 		return err
 	}
+	if err := RDB.Expire(CTX, "feed", config.RedisExp).Err(); err != nil {
+		return err
+	}
+	// 写入 hash
 	key := VideoKey(video.Id)
 	if err := RedisStructHash(video, key); err != nil {
 		return err
 	}
 	if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+		return err
+	}
+	// 写入 set
+	listKey := PublishListKey(video.UserId)
+	if err := RDB.SAdd(CTX, listKey, video.Id).Err(); err != nil {
+		return err
+	}
+	if err := RDB.Expire(CTX, listKey, config.RedisExp).Err(); err != nil {
 		return err
 	}
 	return nil

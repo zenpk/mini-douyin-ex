@@ -15,8 +15,8 @@ func WriteRelation(userId int64) error {
 		return err
 	}
 	// 写入 Redis
+	key := FollowKey(userId)
 	for _, id := range followList {
-		key := FollowKey(userId)
 		if err := RDB.SAdd(CTX, key, id).Err(); err != nil {
 			return err
 		}
@@ -30,8 +30,8 @@ func WriteRelation(userId int64) error {
 		return err
 	}
 	// 写入 Redis
+	key = FollowerKey(userId)
 	for _, id := range followerList {
-		key := FollowerKey(userId)
 		if err := RDB.SAdd(CTX, key, id).Err(); err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func ReadFollow(userAId, userBId int64) ([]dal.User, error) {
 			return []dal.User{}, err
 		}
 		// 查找当前登录用户（userA）是否关注了该用户
-		user.IsFollow, err = ReadRelation(userAId, userBId)
+		user.IsFollow, err = ReadRelation(userAId, user.Id)
 		if err != nil {
 			return []dal.User{}, err
 		}
@@ -134,7 +134,7 @@ func ReadFollower(userAId, userBId int64) ([]dal.User, error) {
 			return []dal.User{}, err
 		}
 		// 查找当前登录用户（userA）是否关注了该用户
-		user.IsFollow, err = ReadRelation(userAId, userBId)
+		user.IsFollow, err = ReadRelation(userAId, user.Id)
 		if err != nil {
 			return []dal.User{}, err
 		}

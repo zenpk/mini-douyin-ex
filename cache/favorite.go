@@ -52,7 +52,6 @@ func ReadFavorite(userId, videoId int64) (bool, error) {
 }
 
 // ReadFavoriteList 查询用户点赞视频列表，未命中则从 MySQL 中读取
-// 无需同时查询作者信息，因为前端无法查看视频详细信息
 // userA 是当前登录用户 userB 是查询用户
 func ReadFavoriteList(userAId, userBId int64) ([]dal.Video, error) {
 	key := FavoriteKey(userBId)
@@ -75,6 +74,16 @@ func ReadFavoriteList(userAId, userBId int64) ([]dal.Video, error) {
 			}
 			// 查找当前登录用户是否点过赞
 			video.IsFavorite, err = ReadFavorite(userAId, video.Id)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找视频对应的用户
+			video.Author, err = ReadUser(video.UserId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找是否关注了这个用户
+			video.Author.IsFollow, err = ReadRelation(userAId, video.UserId)
 			if err != nil {
 				return []dal.Video{}, err
 			}
@@ -101,6 +110,16 @@ func ReadFavoriteList(userAId, userBId int64) ([]dal.Video, error) {
 			}
 			// 查找当前登录用户是否点过赞
 			video.IsFavorite, err = ReadFavorite(userAId, video.Id)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找视频对应的用户
+			video.Author, err = ReadUser(video.UserId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找是否关注了这个用户
+			video.Author.IsFollow, err = ReadRelation(userAId, video.UserId)
 			if err != nil {
 				return []dal.Video{}, err
 			}
