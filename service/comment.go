@@ -1,11 +1,14 @@
-package handler
+package service
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/zenpk/mini-douyin-ex/cache"
 	"github.com/zenpk/mini-douyin-ex/dal"
 	"github.com/zenpk/mini-douyin-ex/util"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type CommentListResponse struct {
@@ -24,8 +27,9 @@ func CommentAction(c *gin.Context) {
 	action := c.Query("action_type")
 	actionType, err := strconv.Atoi(action)
 	if err != nil {
+		log.Println(err)
 		c.JSON(http.StatusOK, CommentListResponse{
-			Response: Response{StatusCode: StatusFailed, StatusMsg: err.Error()},
+			Response: Response{StatusCode: StatusFailed, StatusMsg: "操作出错"},
 		})
 		return
 	}
@@ -33,10 +37,17 @@ func CommentAction(c *gin.Context) {
 	videoId := util.QueryId(c, "video_id")
 	commentId := util.QueryId(c, "comment_id")
 	commentText := c.Query("comment_text")
+	comment := dal.Comment{
+		UserId:     userId,
+		VideoId:    videoId,
+		Content:    commentText,
+		CreateDate: time.Now().Format("01-02 15:04:05"),
+	}
 	if actionType == ActionAddComment {
-		if comment, err := dal.AddComment(userId, videoId, commentText); err != nil {
+		if err := cache.AddComment(comment); err != nil {
+			log.Println(err)
 			c.JSON(http.StatusOK, CommentListResponse{
-				Response: Response{StatusCode: StatusFailed, StatusMsg: err.Error()},
+				Response: Response{StatusCode: StatusFailed, StatusMsg: "评论失败"},
 			})
 		} else {
 			c.JSON(http.StatusOK, CommentListResponse{
@@ -45,9 +56,10 @@ func CommentAction(c *gin.Context) {
 			})
 		}
 	} else if actionType == ActionDeleteComment {
-		if err := dal.DeleteComment(userId, videoId, commentId); err != nil {
+		if err := cache.DeleteComment(userId, videoId, commentId); err != nil {
+			log.Println(err)
 			c.JSON(http.StatusOK, CommentListResponse{
-				Response: Response{StatusCode: StatusFailed, StatusMsg: err.Error()},
+				Response: Response{StatusCode: StatusFailed, StatusMsg: "删除评论失败"},
 			})
 		} else {
 			c.JSON(http.StatusOK, CommentListResponse{
@@ -64,9 +76,11 @@ func CommentAction(c *gin.Context) {
 // CommentList 获取评论列表
 func CommentList(c *gin.Context) {
 	videoId := util.QueryId(c, "video_id")
-	if commentList, err := dal.GetCommentList(videoId); err != nil {
+	if commentList, err := cache.ReadComment(videoId); err != nil {
+		// TODO 进一步读取关注信息？
+		log.Println(err)
 		c.JSON(http.StatusOK, CommentListResponse{
-			Response: Response{StatusCode: StatusSuccess, StatusMsg: err.Error()},
+			Response: Response{StatusCode: StatusSuccess, StatusMsg: "获取评论列表失败"},
 		})
 	} else {
 		c.JSON(http.StatusOK, CommentListResponse{

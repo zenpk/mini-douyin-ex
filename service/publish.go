@@ -1,9 +1,11 @@
-package handler
+package service
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/zenpk/mini-douyin-ex/cache"
 	"github.com/zenpk/mini-douyin-ex/dal"
 	"github.com/zenpk/mini-douyin-ex/util"
+	"log"
 	"net/http"
 	"path/filepath"
 )
@@ -22,21 +24,27 @@ func Publish(c *gin.Context) {
 	// 读取视频
 	data, err := c.FormFile("data")
 	if err != nil {
-		ResponseFailed(c, err.Error())
+		log.Println(err)
+		ResponseFailed(c, "读取视频失败")
 		return
 	}
 	filename := filepath.Base(data.Filename)
-	if err := dal.Publish(c, userId, title, filename, data); err != nil {
-		ResponseFailed(c, "上传失败，原因："+err.Error())
+	if video, err := dal.Publish(c, userId, title, filename, data); err != nil {
+		log.Println(err)
+		ResponseFailed(c, "上传失败")
 	} else {
+		// 将视频写入 Redis，如果失败也不需要回滚，下次重新读取即可
+		if err := cache.AddVideo(video); err != nil {
+			log.Println(err)
+		}
 		ResponseSuccess(c, "上传成功")
 	}
 }
 
-// PublishList 显示当前用户投稿的所有视频，目前的实现方式是直接从所有视频的表里根据 user_id 选取
-// 效率可能较低？
+// PublishList 获取当前用户的视频列表
+// 由于很难确定视频 id 范围，因此暂不缓存
 func PublishList(c *gin.Context) {
-	userId := util.GetTokenUserId(c)
+	userId := util.QueryUserId(c)
 	videoList := dal.GetPublishList(userId)
 	c.JSON(http.StatusOK, VideoListResponse{
 		Response: Response{

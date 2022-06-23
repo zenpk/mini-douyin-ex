@@ -21,8 +21,13 @@
 # Go workspace file
 go.work
 
+# GoLand
 .idea
 
-# 测试用的视频和封面
+# Video related files
 *.mp4
 *.jpg
+
+# my
+*.pptx
+myself.md

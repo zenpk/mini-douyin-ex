@@ -5,7 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/zenpk/mini-douyin-ex/config"
-	"github.com/zenpk/mini-douyin-ex/handler"
+	"github.com/zenpk/mini-douyin-ex/service"
 	"github.com/zenpk/mini-douyin-ex/util"
 )
 
@@ -29,12 +29,12 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := util.QueryToken(c)
 		if token == "" {
-			handler.ResponseFailed(c, "请先登录或注册")
+			service.ResponseFailed(c, "请先登录或注册")
 			return
 		}
 		userId, err := parseToken(token)
-		if err != nil || userId == int64(0) {
-			handler.ResponseFailed(c, "token 校验失败")
+		if err != nil || userId == 0 {
+			service.ResponseFailed(c, "token 校验失败")
 			c.Abort()
 		} else {
 			c.Set("token_user_id", userId) // 避免和 "user_id" 冲突
@@ -52,8 +52,8 @@ func AuthMiddlewareAlt() gin.HandlerFunc {
 			return
 		}
 		userId, err := parseToken(token)
-		if err != nil || userId == int64(0) { // 登录了但校验失败
-			handler.ResponseFailed(c, "token 校验失败")
+		if err != nil || userId == 0 { // 登录了但校验失败
+			service.ResponseFailed(c, "token 校验失败")
 			c.Abort()
 		} else {
 			c.Set("token_user_id", userId) // 避免和 "user_id" 冲突

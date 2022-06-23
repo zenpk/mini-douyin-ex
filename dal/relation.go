@@ -5,24 +5,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// Relation 用于维护用户关注关系，待之后完善
+// Relation 用于维护用户关注关系，使用复合主键
 // 一行数据代表 "UserA 关注了 UserB"
 type Relation struct {
-	Id      int64 `gorm:"primaryKey"`
-	UserA   User  `gorm:"foreignKey:UserAId"`
-	UserAId int64 `gorm:"notnull"`
-	UserB   User  `gorm:"foreignKey:UserBId"`
-	UserBId int64 `gorm:"notnull"`
+	UserAId int64 `gorm:"primaryKey;autoIncrement:false"`
+	UserBId int64 `gorm:"primaryKey;autoIncrement:false"`
 }
 
-// IsFollowed 查询用户 A 是否关注了用户 B
-func IsFollowed(userIdA, userIdB int64) bool {
-	return DB.Find(&Relation{}).Where("user_a_id=?", userIdA).Where("user_b_id=?", userIdB).RowsAffected > 0
-}
-
-func Follow(userAId, userBId int64) error {
+func AddFollow(userAId, userBId int64) error {
 	// 添加记录前先查找是否存在
-	if DB.Find(&Relation{}).Where("user_a_id=?", userAId).Where("user_b_id", userBId).RowsAffected > 0 {
+	if DB.Find(&Relation{}).Where("user_a_id = ?", userAId).Where("user_b_id", userBId).RowsAffected > 0 {
 		return errors.New("已经关注过")
 	}
 	relation := Relation{
@@ -35,10 +27,10 @@ func Follow(userAId, userBId int64) error {
 			return err
 		}
 		// 增加关注数、被关注数
-		if err := tx.Model(&User{}).Where("id=?", userAId).UpdateColumn("follow_count", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
+		if err := tx.Model(&User{}).Where("id = ?", userAId).UpdateColumn("follow_count", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&User{}).Where("id=?", userBId).UpdateColumn("follower_count", gorm.Expr("follower_count + ?", 1)).Error; err != nil {
+		if err := tx.Model(&User{}).Where("id = ?", userBId).UpdateColumn("follower_count", gorm.Expr("follower_count + ?", 1)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -48,22 +40,22 @@ func Follow(userAId, userBId int64) error {
 	return nil
 }
 
-func Unfollow(userAId, userBId int64) error {
+func DeleteFollow(userAId, userBId int64) error {
 	// 删除记录前先查找是否存在
-	if DB.Find(&Relation{}).Where("user_a_id=?", userAId).Where("user_b_id", userBId).RowsAffected == 0 {
+	if DB.Find(&Relation{}).Where("user_a_id = ?", userAId).Where("user_b_id", userBId).RowsAffected == 0 {
 		return errors.New("没有关注记录")
 	}
 
 	// 开启数据库事务
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		// 删除关注关系
-		if err := tx.Where("user_a_id=?", userAId).Where("user_b_id=?", userBId).Delete(&Relation{}).Error; err != nil {
+		if err := tx.Where("user_a_id = ?", userAId).Where("user_b_id = ?", userBId).Delete(&Relation{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&User{}).Where("id=?", userAId).UpdateColumn("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
+		if err := tx.Model(&User{}).Where("id = ?", userAId).UpdateColumn("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&User{}).Where("id=?", userBId).UpdateColumn("follower_count", gorm.Expr("follower_count - ?", 1)).Error; err != nil {
+		if err := tx.Model(&User{}).Where("id = ?", userBId).UpdateColumn("follower_count", gorm.Expr("follower_count - ?", 1)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -73,28 +65,28 @@ func Unfollow(userAId, userBId int64) error {
 	return nil
 }
 
-// GetFollowList 获取查询用户的关注列表
-func GetFollowList(userId int64) ([]User, error) {
+// GetFollowList 获取查询用户的所有关注的 id
+func GetFollowList(userId int64) ([]int64, error) {
 	var followList []Relation
-	// 加载 UserB 即加载当前用户关注的用户
-	DB.Preload("UserB").Where("user_a_id=?", userId).Find(&followList)
-	// 这里直接暴力复制了，不知道 Go 语言有无更好的方法可以提取结构体数组中的元素
-	followUserList := make([]User, len(followList))
-	for i, f := range followList {
-		followUserList[i] = f.UserB
+	if err := DB.Where("user_a_id = ?", userId).Find(&followList).Error; err != nil {
+		return []int64{}, err
 	}
-	return followUserList, nil
+	followIdList := make([]int64, len(followList))
+	for i, f := range followList {
+		followIdList[i] = f.UserAId
+	}
+	return followIdList, nil
 }
 
-// GetFollowerList 获取查询用户的粉丝列表
-func GetFollowerList(userId int64) ([]User, error) {
-	var followerList []Relation
-	// 加载 UserA 即加载当前用户的粉丝
-	DB.Preload("UserA").Where("user_b_id=?", userId).Find(&followerList)
-	// 这里直接暴力复制了，不知道 Go 语言有无更好的方法可以提取结构体数组中的元素
-	followerUserList := make([]User, len(followerList))
-	for i, f := range followerList {
-		followerUserList[i] = f.UserA
+// GetFollowerList 获取查询用户的所有粉丝的 id
+func GetFollowerList(userId int64) ([]int64, error) {
+	var followList []Relation
+	if err := DB.Where("user_b_id = ?", userId).Find(&followList).Error; err != nil {
+		return []int64{}, err
 	}
-	return followerUserList, nil
+	followerIdList := make([]int64, len(followList))
+	for i, f := range followList {
+		followerIdList[i] = f.UserAId
+	}
+	return followerIdList, nil
 }

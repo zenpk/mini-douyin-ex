@@ -1,7 +1,8 @@
-package handler
+package service
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/zenpk/mini-douyin-ex/cache"
 	"github.com/zenpk/mini-douyin-ex/dal"
 	"github.com/zenpk/mini-douyin-ex/util"
 	"log"
@@ -22,15 +23,19 @@ type UserResponse struct {
 func Register(c *gin.Context) {
 	username := c.Query("username")
 	password := c.Query("password")
-
 	// 调用数据层函数
-	if id, err := dal.Register(username, password); err != nil {
+	if user, err := dal.Register(username, password); err != nil {
+		log.Println(err)
 		c.JSON(http.StatusOK, UserLoginResponse{
-			Response: Response{StatusCode: StatusFailed, StatusMsg: err.Error()},
+			Response: Response{StatusCode: StatusFailed, StatusMsg: "注册失败"},
 		})
 	} else {
 		// 根据用户 id 生成 token
-		token, err := GenToken(id)
+		token, err := GenToken(user.Id)
+		// 用户登录后，将用户信息写入缓存
+		if err := cache.WriteUser(user); err != nil {
+			log.Println(err)
+		}
 		if err != nil {
 			log.Println(err)
 			c.JSON(http.StatusOK, UserLoginResponse{
@@ -39,7 +44,7 @@ func Register(c *gin.Context) {
 		} else {
 			c.JSON(http.StatusOK, UserLoginResponse{
 				Response: Response{StatusCode: StatusSuccess, StatusMsg: "注册成功"},
-				UserId:   id,
+				UserId:   user.Id,
 				Token:    token,
 			})
 		}
@@ -49,40 +54,53 @@ func Register(c *gin.Context) {
 func Login(c *gin.Context) {
 	username := c.Query("username")
 	password := c.Query("password")
-
-	if id, err := dal.Login(username, password); err != nil {
+	if user, err := dal.Login(username, password); err != nil {
+		log.Println(err)
 		c.JSON(http.StatusOK, UserLoginResponse{
-			Response: Response{StatusCode: StatusFailed, StatusMsg: err.Error()},
+			Response: Response{StatusCode: StatusFailed, StatusMsg: "登录失败"},
 		})
 	} else {
-		if token, err := GenToken(id); err != nil {
+		if token, err := GenToken(user.Id); err != nil {
 			log.Println(err)
 			c.JSON(http.StatusOK, UserLoginResponse{
 				Response: Response{StatusCode: StatusFailed, StatusMsg: "token 生成失败"},
 			})
 		} else {
+			// 用户登录后，将用户信息写入缓存
+			if err := cache.WriteUser(user); err != nil {
+				log.Println(err)
+			}
 			c.JSON(http.StatusOK, UserLoginResponse{
 				Response: Response{StatusCode: StatusSuccess, StatusMsg: "登录成功"},
-				UserId:   id,
+				UserId:   user.Id,
 				Token:    token,
 			})
 		}
 	}
 }
 
+// UserInfo 查看某用户的信息
 func UserInfo(c *gin.Context) {
-	userIdA := util.GetTokenUserId(c) // token 中包含的 id 是当前登录用户的 id
-	userIdB := util.QueryUserId(c)    // 请求中的 user_id 是查看用户信息的 id
-	// 查询数据库判断是否关注了此用户
-	if userB, err := dal.GetUserById(userIdB); err != nil {
+	userAId := util.GetTokenUserId(c) // token 中包含的 id 是当前登录用户的 id
+	userBId := util.QueryUserId(c)    // 请求中的 user_id 是查看用户信息的 id
+	// 先查用户
+	userB, err := cache.ReadUser(userBId)
+	if err != nil {
+		log.Println(err)
 		c.JSON(http.StatusOK, UserResponse{
-			Response: Response{StatusCode: StatusFailed, StatusMsg: "未查询到该用户"},
-		})
-	} else {
-		userB.IsFollow = dal.IsFollowed(userIdA, userIdB)
-		c.JSON(http.StatusOK, UserResponse{
-			Response: Response{StatusCode: StatusSuccess},
-			User:     userB,
+			Response: Response{StatusCode: StatusFailed, StatusMsg: "查看失败"},
 		})
 	}
+	// 再查是否关注
+	userB.IsFollow, err = cache.ReadRelation(userAId, userBId)
+	if err != nil {
+		log.Println(err)
+		c.JSON(http.StatusOK, UserResponse{
+			Response: Response{StatusCode: StatusFailed, StatusMsg: "查看失败"},
+		})
+	}
+	c.JSON(http.StatusOK, UserResponse{
+		Response: Response{StatusCode: StatusSuccess},
+		User:     userB,
+	})
 }
