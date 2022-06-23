@@ -59,10 +59,10 @@ func Publish(c *gin.Context, userId int64, title string, filename string, data *
 	return video, nil
 }
 
-func GetPublishList(userId int64) []Video {
+func GetPublishList(userId int64) ([]Video, error) {
 	var videoList []Video
-	DB.Where("user_id = ?", userId).Find(&videoList)
-	return videoList
+	err := DB.Where("user_id = ?", userId).Find(&videoList).Error
+	return videoList, err
 }
 
 // GetFeed 获取时间倒序前 feedSize 个视频
@@ -79,9 +79,3 @@ func GetVideoById(videoId int64) (Video, error) {
 	err := DB.Find(&video, videoId).Error
 	return video, err
 }
-
-//func GetVideoListById(videoId []int64) ([]Video, error) {
-//	var videoList []Video
-//	err := DB.Find(&videoList, videoId).Error
-//	return videoList, err
-//}

@@ -8,7 +8,6 @@ import (
 )
 
 // WriteFeed 将视频流 **首次** 写入 Redis
-// 由于仅在首次启动时调用，因此该函数和其子调用在写入时均不用查询是否已存在
 func WriteFeed(latestTime int64) error {
 	// 检查是否已有数据
 	if n, err := RDB.Exists(CTX, "feed").Result(); err != nil || n > 0 {
@@ -23,9 +22,7 @@ func WriteFeed(latestTime int64) error {
 		return nil
 	}
 	// 将视频 id 写入 feed，视频信息写入 hash，同时记录作者信息
-	userIdList := make([]int64, len(videoList))
-	videoIdList := make([]int64, len(videoList))
-	for i, video := range videoList {
+	for _, video := range videoList {
 		if err := RDB.ZAdd(CTX, "feed", &redis.Z{Score: float64(video.CreateTime), Member: video.Id}).Err(); err != nil {
 			return err
 		}
@@ -36,24 +33,59 @@ func WriteFeed(latestTime int64) error {
 		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
 			return err
 		}
-		userIdList[i] = video.UserId
-		videoIdList[i] = video.Id
+		// 读取视频对应评论并写入 Redis
+		if _, err := WriteCommentList(video.Id); err != nil {
+			return err
+		}
+		// 读取视频作者信息并写入 Redis
+		if _, err := WriteUser(video.UserId); err != nil {
+			return err
+		}
+		// 读取视频作者的关注粉丝信息并写入 Redis
+		if err := WriteRelation(video.UserId); err != nil {
+			return err
+		}
+		// 读取视频作者的投稿信息并写入 Redis
+		if _, err := WritePublishList(video.UserId); err != nil {
+			return err
+		}
+		// 读取视频作者的点赞信息并写入 Redis
+		if _, err := WriteFavoriteList(video.UserId); err != nil {
+			return err
+		}
 	}
-	// 将视频流中的评论信息写入 Redis
-	if err := WriteCommentFromFeed(videoIdList); err != nil {
-		return err
+	return nil
+}
+
+// WritePublishList 根据用户 id 从 MySQL 中读取投稿信息
+// 根据用户 id 建立 set
+func WritePublishList(userId int64) ([]dal.Video, error) {
+	// 数据库读取投稿信息
+	videoList, err := dal.GetPublishList(userId)
+	if err != nil {
+		return []dal.Video{}, err
 	}
-	// 将视频流中的作者信息写入 Redis
-	if err := WriteUserFromFeed(userIdList); err != nil {
-		return err
+	// listKey 值是 userId 决定的，这样才能方便地查询每个用户的投稿视频
+	listKey := VideoListKey(userId)
+	for _, video := range videoList {
+		if err := RDB.SAdd(CTX, listKey, video.Id).Err(); err != nil {
+			return []dal.Video{}, err
+		}
+		// 同时还需要将每个 video 单独存储在 hash 中
+		key := VideoKey(video.Id)
+		if err := RedisStructHash(video, key); err != nil {
+			return []dal.Video{}, err
+		}
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return []dal.Video{}, err
+		}
 	}
-	// 将视频流中作者的关注粉丝信息写入 Redis
-	if err := WriteRelationFromFeed(userIdList); err != nil {
-		return err
+	// set 整体设置一次过期时间即可
+	if err := RDB.Expire(CTX, listKey, config.RedisExp).Err(); err != nil {
+		return []dal.Video{}, err
 	}
-	// 将视频流中作者的点赞信息写入 Redis
-	err = WriteFavoriteFromFeed(userIdList)
-	return err
+
+	return videoList, nil
 }
 
 // ReadVideo 先在 Redis 中查找视频信息，若无则从 MySQL 中读取
@@ -120,6 +152,12 @@ func ReadFeed(latestTime int64) ([]dal.Video, error) {
 		videoList[i] = video
 	}
 	return videoList, nil
+}
+
+// ReadPublishList 读取用户投稿视频
+// userA 是当前登录用户，userB 是查看的用户
+func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
+
 }
 
 // AddVideo 将新发布的视频分别写入 Redis 的 feed 和视频 hash 中

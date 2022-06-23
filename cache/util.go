@@ -155,12 +155,16 @@ func VideoKey(videoId int64) string {
 	return "video:" + strconv.FormatInt(videoId, 10)
 }
 
-func CommentListKey(videoId int64) string {
-	return "comment_list:" + strconv.FormatInt(videoId, 10)
+func VideoListKey(userId int64) string {
+	return "video_list:" + strconv.FormatInt(userId, 10)
 }
 
 func CommentKey(commentId int64) string {
 	return "comment:" + strconv.FormatInt(commentId, 10)
+}
+
+func CommentListKey(videoId int64) string {
+	return "comment_list:" + strconv.FormatInt(videoId, 10)
 }
 
 func FollowKey(userId int64) string {
@@ -171,6 +175,6 @@ func FollowerKey(userId int64) string {
 	return "follower:" + strconv.FormatInt(userId, 10)
 }
 
-func FavoriteKey(userId, videoId int64) string {
-	return "favorite:" + strconv.FormatInt(userId, 10) + ":" + strconv.FormatInt(videoId, 10)
+func FavoriteKey(userId int64) string {
+	return "favorite:" + strconv.FormatInt(userId, 10)
 }

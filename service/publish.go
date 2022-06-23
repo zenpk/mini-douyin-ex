@@ -42,10 +42,10 @@ func Publish(c *gin.Context) {
 }
 
 // PublishList 获取当前用户的视频列表
-// 由于很难确定视频 id 范围，因此暂不缓存
 func PublishList(c *gin.Context) {
-	userId := util.QueryUserId(c)
-	videoList := dal.GetPublishList(userId)
+	userAId := util.GetTokenUserId(c)
+	userBId := util.QueryUserId(c)
+	if videoList,err := cache.ReadPublishList(userAId, userBId)
 	c.JSON(http.StatusOK, VideoListResponse{
 		Response: Response{
 			StatusCode: StatusSuccess,

@@ -57,14 +57,8 @@ func DeleteFavorite(userId, videoId int64) error {
 	return nil
 }
 
-func GetFavoriteListByUserId(userId int64) ([]Favorite, error) {
+func GetFavoriteByUserId(userId int64) ([]Favorite, error) {
 	var favoriteList []Favorite
 	err := DB.Where("user_id = ?", userId).Find(&favoriteList).Error
-	return favoriteList, err
-}
-
-func GetFavoriteListByUserIdList(userIdList []int64) ([]Favorite, error) {
-	var favoriteList []Favorite
-	err := DB.Where("user_id IN ?", userIdList).Find(&favoriteList).Error
 	return favoriteList, err
 }

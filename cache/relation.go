@@ -6,19 +6,9 @@ import (
 	"strconv"
 )
 
-// WriteRelationFromFeed 将视频流相关用户的关注粉丝关系写入 Redis
-func WriteRelationFromFeed(userIdList []int64) error {
-	// Redis 中存储的 Relation 比较特殊，需要分成关注和粉丝两种 key
-	for _, userId := range userIdList {
-		if err := getAndWriteRelation(userId); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// getAndWriteRelation 从数据库中读取关注粉丝列表并写入
-func getAndWriteRelation(userId int64) error {
+// WriteRelation 从数据库中读取关注粉丝列表并写入
+// 由于涉及到关注粉丝两个数组，比较麻烦，因此不返回数组，重新查询缓存即可
+func WriteRelation(userId int64) error {
 	// 查找关注列表
 	followList, err := dal.GetFollowList(userId)
 	if err != nil {
@@ -62,7 +52,7 @@ func ReadRelation(userAId, userBId int64) (bool, error) {
 	}
 	// 未命中，先从数据库中提取 A 的关注粉丝记录
 	if n <= 0 {
-		if err := getAndWriteRelation(userAId); err != nil {
+		if err := WriteRelation(userAId); err != nil {
 			return false, err
 		}
 	}
@@ -86,11 +76,11 @@ func ReadFollow(userAId, userBId int64) ([]dal.User, error) {
 	}
 	// 未命中，先从数据库中提取 B 的关注粉丝记录
 	if n <= 0 {
-		if err := getAndWriteRelation(userBId); err != nil {
+		if err := WriteRelation(userBId); err != nil {
 			return []dal.User{}, err
 		}
 	}
-	// 再查询所有关注用户的信息
+	// 再查询所有关注信息
 	followIdStrList, err := RDB.SMembers(CTX, key).Result()
 	if err != nil {
 		return []dal.User{}, err
@@ -124,7 +114,7 @@ func ReadFollower(userAId, userBId int64) ([]dal.User, error) {
 	}
 	// 未命中，先从数据库中提取 B 的关注粉丝记录
 	if n <= 0 {
-		if err := getAndWriteRelation(userBId); err != nil {
+		if err := WriteRelation(userBId); err != nil {
 			return []dal.User{}, err
 		}
 	}

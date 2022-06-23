@@ -55,6 +55,12 @@ func DeleteComment(userId, videoId, commentId int64) error {
 	return nil
 }
 
+func GetCommentById(commentId int64) (Comment, error) {
+	var comment Comment
+	err := DB.First(&comment, commentId).Error
+	return comment, err
+}
+
 func GetCommentByVideoId(videoId int64) ([]Comment, error) {
 	var commentList []Comment
 	err := DB.Where("video_id = ?", videoId).Find(&commentList).Error

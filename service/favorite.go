@@ -55,26 +55,15 @@ func FavoriteAction(c *gin.Context) {
 // FavoriteList 获取点赞视频列表
 // 由于前端无法从点赞列表中查看视频详情，因此无需考虑作者等信息
 func FavoriteList(c *gin.Context) {
-	var videoList []dal.Video
-	userId := util.QueryId(c, "user_id")
-	favoriteList, err := dal.GetFavoriteListByUserId(userId)
+	userAId := util.GetTokenUserId(c)
+	userBId := util.QueryId(c, "user_id")
+	videoList, err := cache.ReadFavoriteList(userAId, userBId)
 	if err != nil {
 		log.Println(err)
 		c.JSON(http.StatusOK, FavoriteListResponse{
 			Response: Response{StatusCode: StatusFailed, StatusMsg: "获取点赞视频列表失败"},
 		})
 		return
-	}
-	for _, favorite := range favoriteList {
-		video, err := cache.ReadVideo(favorite.VideoId)
-		if err != nil {
-			log.Println(err)
-			c.JSON(http.StatusOK, FavoriteListResponse{
-				Response: Response{StatusCode: StatusFailed, StatusMsg: "获取点赞视频列表失败"},
-			})
-			return
-		}
-		videoList = append(videoList, video)
 	}
 	c.JSON(http.StatusOK, FavoriteListResponse{
 		Response:  Response{StatusCode: StatusSuccess},

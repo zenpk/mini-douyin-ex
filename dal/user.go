@@ -57,9 +57,3 @@ func GetUserById(id int64) (User, error) {
 	err := DB.Find(&user, id).Error
 	return user, err
 }
-
-func GetUserListById(id []int64) ([]User, error) {
-	var userList []User
-	err := DB.Find(&userList, id).Error
-	return userList, err
-}

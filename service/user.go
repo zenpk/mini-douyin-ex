@@ -33,7 +33,7 @@ func Register(c *gin.Context) {
 		// 根据用户 id 生成 token
 		token, err := GenToken(user.Id)
 		// 用户登录后，将用户信息写入缓存
-		if err := cache.WriteUser(user); err != nil {
+		if err := cache.RegisterLoginUser(user); err != nil {
 			log.Println(err)
 		}
 		if err != nil {
@@ -67,7 +67,7 @@ func Login(c *gin.Context) {
 			})
 		} else {
 			// 用户登录后，将用户信息写入缓存
-			if err := cache.WriteUser(user); err != nil {
+			if err := cache.RegisterLoginUser(user); err != nil {
 				log.Println(err)
 			}
 			c.JSON(http.StatusOK, UserLoginResponse{
