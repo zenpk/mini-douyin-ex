@@ -155,8 +155,8 @@ func VideoKey(videoId int64) string {
 	return "video:" + strconv.FormatInt(videoId, 10)
 }
 
-func VideoListKey(userId int64) string {
-	return "video_list:" + strconv.FormatInt(userId, 10)
+func PublishListKey(userId int64) string {
+	return "publish_list:" + strconv.FormatInt(userId, 10)
 }
 
 func CommentKey(commentId int64) string {

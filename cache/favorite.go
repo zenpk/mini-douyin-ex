@@ -13,7 +13,7 @@ func WriteFavoriteList(userId int64) ([]dal.Favorite, error) {
 	if err != nil {
 		return []dal.Favorite{}, err
 	}
-	key := UserKey(userId)
+	key := FavoriteKey(userId)
 	for _, favorite := range favoriteList {
 		if err := RDB.SAdd(CTX, key, favorite.VideoId).Err(); err != nil {
 			return []dal.Favorite{}, err
@@ -41,12 +41,14 @@ func ReadFavorite(userId, videoId int64) (bool, error) {
 	}
 	// 在用户点赞 set 中查询是否点赞
 	videoIdStr := strconv.FormatInt(videoId, 10)
-	isFollow, err := RDB.SIsMember(CTX, key, videoIdStr).Result()
+	isFavorite, err := RDB.SIsMember(CTX, key, videoIdStr).Result()
 	if err != nil {
 		return false, err
-	} else {
-		return isFollow, nil
 	}
+	if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+		return false, err
+	}
+	return isFavorite, nil
 }
 
 // ReadFavoriteList 查询用户点赞视频列表，未命中则从 MySQL 中读取

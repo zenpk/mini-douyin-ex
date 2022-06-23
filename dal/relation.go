@@ -14,7 +14,7 @@ type Relation struct {
 
 func AddFollow(userAId, userBId int64) error {
 	// 添加记录前先查找是否存在
-	if DB.Find(&Relation{}).Where("user_a_id = ?", userAId).Where("user_b_id", userBId).RowsAffected > 0 {
+	if DB.Where("user_a_id = ? AND user_b_id = ?", userAId, userBId).Find(&Relation{}).RowsAffected > 0 {
 		return errors.New("已经关注过")
 	}
 	relation := Relation{
@@ -42,14 +42,15 @@ func AddFollow(userAId, userBId int64) error {
 
 func DeleteFollow(userAId, userBId int64) error {
 	// 删除记录前先查找是否存在
-	if DB.Find(&Relation{}).Where("user_a_id = ?", userAId).Where("user_b_id", userBId).RowsAffected == 0 {
+	var relation Relation
+	if DB.Where("user_a_id = ? AND user_b_id", userAId, userBId).First(&relation).RowsAffected <= 0 {
 		return errors.New("没有关注记录")
 	}
 
 	// 开启数据库事务
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		// 删除关注关系
-		if err := tx.Where("user_a_id = ?", userAId).Where("user_b_id = ?", userBId).Delete(&Relation{}).Error; err != nil {
+		if err := tx.Delete(&relation).Error; err != nil {
 			return err
 		}
 		if err := tx.Model(&User{}).Where("id = ?", userAId).UpdateColumn("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {

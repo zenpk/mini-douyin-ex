@@ -36,7 +36,7 @@ func WriteCommentList(videoId int64) ([]dal.Comment, error) {
 }
 
 // ReadCommentList 读取视频的评论列表，没有则从数据库写入
-// 还需要同时读取用户信息
+// 需要同时读取用户信息
 func ReadCommentList(videoId int64) ([]dal.Comment, error) {
 	var commentList []dal.Comment
 	listKey := CommentListKey(videoId)
@@ -52,6 +52,10 @@ func ReadCommentList(videoId int64) ([]dal.Comment, error) {
 	} else { // 命中，从 Redis 中读取
 		commentIdStrList, err := RDB.SMembers(CTX, listKey).Result()
 		if err != nil {
+			return []dal.Comment{}, err
+		}
+		// 更新过期时间
+		if err := RDB.Expire(CTX, listKey, config.RedisExp).Err(); err != nil {
 			return []dal.Comment{}, err
 		}
 		for _, commentIdStr := range commentIdStrList {
@@ -76,6 +80,14 @@ func ReadCommentList(videoId int64) ([]dal.Comment, error) {
 				if err != nil {
 					return []dal.Comment{}, err
 				}
+				if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+					return []dal.Comment{}, err
+				}
+			}
+			// 为每条评论读取用户信息
+			comment.User, err = ReadUser(comment.UserId)
+			if err != nil {
+				return []dal.Comment{}, err
 			}
 			commentList = append(commentList, comment)
 		}
@@ -95,6 +107,8 @@ func AddComment(comment dal.Comment) error {
 	if err != nil {
 		return err
 	}
+	// 更新生成的自增主键
+	comment.Id = commentId
 	// Redis 第二次删除视频
 	if err := DeleteVideo(comment.VideoId); err != nil {
 		return err
@@ -102,12 +116,11 @@ func AddComment(comment dal.Comment) error {
 	// 分别写入 Redis 的 set 和 hash
 	// 写入 set
 	listKey := CommentListKey(comment.VideoId)
-	if err := RDB.SAdd(CTX, listKey, comment.Id).Err(); err != nil {
+	if err := RDB.SAdd(CTX, listKey, commentId).Err(); err != nil {
 		return err
 	}
 	// 写入 Hash
 	key := CommentKey(commentId)
-	comment.Id = commentId
 	if err := RedisStructHash(comment, key); err != nil {
 		return err
 	}

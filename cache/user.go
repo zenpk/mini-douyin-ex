@@ -28,6 +28,9 @@ func WriteUser(userId int64) (dal.User, error) {
 	if err := RedisStructHash(user, key); err != nil {
 		return dal.User{}, err
 	}
+	if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+		return dal.User{}, err
+	}
 	return user, nil
 }
 
@@ -49,8 +52,10 @@ func ReadUser(userId int64) (dal.User, error) {
 		if err != nil {
 			return dal.User{}, err
 		}
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return dal.User{}, err
+		}
 	}
-	RDB.Expire(CTX, key, config.RedisExp)
 	return user, nil
 }
 

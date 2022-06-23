@@ -19,5 +19,8 @@ func ConnectRDB() error {
 	if _, err := RDB.Ping(CTX).Result(); err != nil {
 		return err
 	}
+	if err := RDB.FlushAll(CTX).Err(); err != nil { // 初始化，方便测试，实际应用中可删除此行
+		return err
+	}
 	return nil
 }

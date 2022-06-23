@@ -45,11 +45,20 @@ func Publish(c *gin.Context) {
 func PublishList(c *gin.Context) {
 	userAId := util.GetTokenUserId(c)
 	userBId := util.QueryUserId(c)
-	if videoList,err := cache.ReadPublishList(userAId, userBId)
-	c.JSON(http.StatusOK, VideoListResponse{
-		Response: Response{
-			StatusCode: StatusSuccess,
-		},
-		VideoList: videoList,
-	})
+	if videoList, err := cache.ReadPublishList(userAId, userBId); err != nil {
+		log.Println(err)
+		c.JSON(http.StatusOK, VideoListResponse{
+			Response: Response{
+				StatusCode: StatusFailed,
+				StatusMsg:  "获取失败",
+			},
+		})
+	} else {
+		c.JSON(http.StatusOK, VideoListResponse{
+			Response: Response{
+				StatusCode: StatusSuccess,
+			},
+			VideoList: videoList,
+		})
+	}
 }

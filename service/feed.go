@@ -31,7 +31,26 @@ func Feed(c *gin.Context) {
 		return
 	}
 	if userId != 0 { // 用户已登录，则需要进一步查询点赞信息和关注信息
-
+		for i, video := range videoList {
+			// 是否点过赞
+			videoList[i].IsFavorite, err = cache.ReadFavorite(userId, video.Id)
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusOK, FeedResponse{
+					Response: Response{StatusCode: StatusFailed, StatusMsg: "视频流获取失败"},
+				})
+				return
+			}
+			// 是否关注作者
+			videoList[i].Author.IsFollow, err = cache.ReadRelation(userId, video.Author.Id)
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusOK, FeedResponse{
+					Response: Response{StatusCode: StatusFailed, StatusMsg: "视频流获取失败"},
+				})
+				return
+			}
+		}
 	}
 	c.JSON(http.StatusOK, FeedResponse{
 		Response:  Response{StatusCode: StatusSuccess},

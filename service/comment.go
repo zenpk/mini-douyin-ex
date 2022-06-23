@@ -35,7 +35,7 @@ func CommentAction(c *gin.Context) {
 	}
 	userId := util.GetTokenUserId(c)
 	videoId := util.QueryId(c, "video_id")
-	commentId := util.QueryId(c, "comment_id")
+	commentId := util.QueryId(c, "comment_id") // 仅在删除评论时有效
 	commentText := c.Query("comment_text")
 	comment := dal.Comment{
 		UserId:     userId,
@@ -77,7 +77,7 @@ func CommentAction(c *gin.Context) {
 func CommentList(c *gin.Context) {
 	videoId := util.QueryId(c, "video_id")
 	if commentList, err := cache.ReadCommentList(videoId); err != nil {
-		// TODO 进一步读取关注信息？
+		// 不需要再进一步读取关注信息
 		log.Println(err)
 		c.JSON(http.StatusOK, CommentListResponse{
 			Response: Response{StatusCode: StatusSuccess, StatusMsg: "获取评论列表失败"},

@@ -13,13 +13,13 @@ type Favorite struct {
 
 // AddFavorite 点赞操作，通过数据库事务保证数据一致性
 func AddFavorite(userId, videoId int64) error {
+	// 检查是否已存在点赞记录
+	if DB.Where("user_id = ? AND video_id = ?", userId, videoId).Find(&Favorite{}).RowsAffected > 0 {
+		return errors.New("已经点赞过")
+	}
 	favorite := Favorite{
 		UserId:  userId,
 		VideoId: videoId,
-	}
-	// 检查是否已存在点赞记录
-	if DB.Find(&Favorite{}).Where("user_id = ?", userId).Where("video_id = ?", videoId).RowsAffected > 0 {
-		return errors.New("已经点赞过")
 	}
 	// 开启数据库事务，在 favorites 中添加记录，在 videos 中更改点赞数目
 	if err := DB.Transaction(func(tx *gorm.DB) error {
@@ -38,13 +38,14 @@ func AddFavorite(userId, videoId int64) error {
 
 // DeleteFavorite 取消点赞操作
 func DeleteFavorite(userId, videoId int64) error {
+	var favorite Favorite
 	// 检查是否存在点赞记录
-	if DB.Find(&Favorite{}).Where("user_id = ?", userId).Where("video_id = ?", videoId).RowsAffected == 0 {
+	if DB.Where("user_id = ? AND video_id = ?", userId, videoId).First(&favorite).RowsAffected <= 0 {
 		return errors.New("不存在点赞记录")
 	}
 	// 开启数据库事务，在 favorites 中添加记录，在 videos 中更改点赞数目
 	if err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", userId).Where("video_id = ?", videoId).Delete(&Favorite{}).Error; err != nil {
+		if err := tx.Delete(&favorite).Error; err != nil {
 			return err
 		}
 		if err := tx.Model(&Video{}).Where("id = ?", videoId).UpdateColumn("favorite_count", gorm.Expr("favorite_count - ?", 1)).Error; err != nil {

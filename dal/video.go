@@ -68,7 +68,7 @@ func GetPublishList(userId int64) ([]Video, error) {
 // GetFeed 获取时间倒序前 feedSize 个视频
 func GetFeed(latestTime int64, feedSize int) ([]Video, error) {
 	var videoList []Video
-	if err := DB.Find(&videoList).Order("id desc").Limit(feedSize).Where("create_time <= ?", latestTime).Error; err != nil {
+	if err := DB.Order("id desc").Limit(feedSize).Where("create_time <= ?", latestTime).Find(&videoList).Error; err != nil {
 		return []Video{}, err
 	}
 	return videoList, nil
@@ -76,6 +76,6 @@ func GetFeed(latestTime int64, feedSize int) ([]Video, error) {
 
 func GetVideoById(videoId int64) (Video, error) {
 	var video Video
-	err := DB.Find(&video, videoId).Error
+	err := DB.First(&video, videoId).Error
 	return video, err
 }

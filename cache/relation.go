@@ -43,7 +43,7 @@ func WriteRelation(userId int64) error {
 }
 
 // ReadRelation 查找是否存在某条关注信息，不存在则从数据库写入
-// userA 一般是当前登录用户，因此优先查询和写入
+// userA 是当前登录用户，因此优先查询和写入
 func ReadRelation(userAId, userBId int64) (bool, error) {
 	key := FollowKey(userAId)
 	n, err := RDB.Exists(CTX, key).Result()
@@ -60,10 +60,11 @@ func ReadRelation(userAId, userBId int64) (bool, error) {
 	isFollow, err := RDB.SIsMember(CTX, key, userBId).Result()
 	if err != nil {
 		return false, err
-	} else {
-		RDB.Expire(CTX, key, config.RedisExp)
-		return isFollow, nil
 	}
+	if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+		return false, err
+	}
+	return isFollow, nil
 }
 
 // ReadFollow 读取用户关注列表，并判断列表中用户是否被关注

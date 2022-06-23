@@ -59,6 +59,7 @@ func WriteFeed(latestTime int64) error {
 
 // WritePublishList 根据用户 id 从 MySQL 中读取投稿信息
 // 根据用户 id 建立 set
+// 由于前端不从投稿列表中查看视频，因此不用查找作者信息
 func WritePublishList(userId int64) ([]dal.Video, error) {
 	// 数据库读取投稿信息
 	videoList, err := dal.GetPublishList(userId)
@@ -66,7 +67,7 @@ func WritePublishList(userId int64) ([]dal.Video, error) {
 		return []dal.Video{}, err
 	}
 	// listKey 值是 userId 决定的，这样才能方便地查询每个用户的投稿视频
-	listKey := VideoListKey(userId)
+	listKey := PublishListKey(userId)
 	for _, video := range videoList {
 		if err := RDB.SAdd(CTX, listKey, video.Id).Err(); err != nil {
 			return []dal.Video{}, err
@@ -88,6 +89,23 @@ func WritePublishList(userId int64) ([]dal.Video, error) {
 	return videoList, nil
 }
 
+// WriteVideo 从 MySQL 中读取视频信息写入 Redis
+func WriteVideo(videoId int64) (dal.Video, error) {
+	key := VideoKey(videoId)
+	video, err := dal.GetVideoById(videoId)
+	if err != nil {
+		return dal.Video{}, err
+	}
+	// 写入 Redis
+	if err := RedisStructHash(video, key); err != nil {
+		return dal.Video{}, err
+	}
+	if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+		return dal.Video{}, err
+	}
+	return video, nil
+}
+
 // ReadVideo 先在 Redis 中查找视频信息，若无则从 MySQL 中读取
 func ReadVideo(videoId int64) (dal.Video, error) {
 	var video dal.Video
@@ -96,13 +114,9 @@ func ReadVideo(videoId int64) (dal.Video, error) {
 	if err != nil {
 		return dal.Video{}, err
 	}
-	if n <= 0 { // 没有此视频的缓存，从 MySQL 中读取
-		video, err = dal.GetVideoById(videoId)
+	if n <= 0 { // 没有此视频的缓存，从 MySQL 中读取并写入
+		video, err = WriteVideo(videoId)
 		if err != nil {
-			return dal.Video{}, err
-		}
-		// 写入 Redis
-		if err := RedisStructHash(video, key); err != nil {
 			return dal.Video{}, err
 		}
 	} else { // 有此缓存
@@ -110,8 +124,11 @@ func ReadVideo(videoId int64) (dal.Video, error) {
 		if err != nil {
 			return dal.Video{}, err
 		}
+		// 更新过期时间
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return dal.Video{}, err
+		}
 	}
-	RDB.Expire(CTX, key, config.RedisExp)
 	// 查询该视频对应的用户
 	user, err := ReadUser(video.UserId)
 	if err != nil {
@@ -156,12 +173,57 @@ func ReadFeed(latestTime int64) ([]dal.Video, error) {
 
 // ReadPublishList 读取用户投稿视频
 // userA 是当前登录用户，userB 是查看的用户
+// 由于前端无法从投稿页面查看视频，因此不用查找作者信息
 func ReadPublishList(userAId, userBId int64) ([]dal.Video, error) {
-
+	key := PublishListKey(userBId)
+	n, err := RDB.Exists(CTX, key).Result()
+	if err != nil {
+		return []dal.Video{}, err
+	}
+	var videoList []dal.Video
+	if n <= 0 { // 未命中，先从数据库中提取用户的投稿记录并写入
+		videoList, err = WritePublishList(userBId)
+		if err != nil {
+			return []dal.Video{}, err
+		}
+		for i, video := range videoList {
+			// 查找当前登录用户是否点过赞
+			videoList[i].IsFavorite, err = ReadFavorite(userAId, video.Id)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+		}
+	} else { // 命中
+		videoIdStrList, err := RDB.SMembers(CTX, key).Result()
+		if err != nil {
+			return []dal.Video{}, err
+		}
+		// 更新过期时间
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return []dal.Video{}, err
+		}
+		for _, videoIdStr := range videoIdStrList {
+			videoId, err := strconv.ParseInt(videoIdStr, 10, 64)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 根据 id 查找视频，先查 Redis 再查 MySQL
+			video, err := ReadVideo(videoId)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			// 查找当前登录用户是否点过赞
+			video.IsFavorite, err = ReadFavorite(userAId, video.Id)
+			if err != nil {
+				return []dal.Video{}, err
+			}
+			videoList = append(videoList, video)
+		}
+	}
+	return videoList, nil
 }
 
 // AddVideo 将新发布的视频分别写入 Redis 的 feed 和视频 hash 中
-// 由于是在 Publish 中调用，一定为新的视频，因此不用查询是否已存在
 // 由于发布视频的用户一定是登录了的用户，因此不用重新向 Redis 中写入作者
 func AddVideo(video dal.Video) error {
 	if err := RDB.ZAdd(CTX, "feed", &redis.Z{Score: float64(video.CreateTime), Member: video.Id}).Err(); err != nil {

@@ -32,21 +32,25 @@ func Register(c *gin.Context) {
 	} else {
 		// 根据用户 id 生成 token
 		token, err := GenToken(user.Id)
-		// 用户登录后，将用户信息写入缓存
-		if err := cache.RegisterLoginUser(user); err != nil {
-			log.Println(err)
-		}
 		if err != nil {
 			log.Println(err)
 			c.JSON(http.StatusOK, UserLoginResponse{
 				Response: Response{StatusCode: StatusFailed, StatusMsg: "token 生成失败"},
 			})
 		} else {
-			c.JSON(http.StatusOK, UserLoginResponse{
-				Response: Response{StatusCode: StatusSuccess, StatusMsg: "注册成功"},
-				UserId:   user.Id,
-				Token:    token,
-			})
+			// 用户注册后，将用户信息写入缓存
+			if err := cache.RegisterLoginUser(user); err != nil {
+				log.Println(err)
+				c.JSON(http.StatusOK, UserLoginResponse{
+					Response: Response{StatusCode: StatusFailed, StatusMsg: "注册失败"},
+				})
+			} else {
+				c.JSON(http.StatusOK, UserLoginResponse{
+					Response: Response{StatusCode: StatusSuccess, StatusMsg: "注册成功"},
+					UserId:   user.Id,
+					Token:    token,
+				})
+			}
 		}
 	}
 }
@@ -69,12 +73,16 @@ func Login(c *gin.Context) {
 			// 用户登录后，将用户信息写入缓存
 			if err := cache.RegisterLoginUser(user); err != nil {
 				log.Println(err)
+				c.JSON(http.StatusOK, UserLoginResponse{
+					Response: Response{StatusCode: StatusFailed, StatusMsg: "token 生成失败"},
+				})
+			} else {
+				c.JSON(http.StatusOK, UserLoginResponse{
+					Response: Response{StatusCode: StatusSuccess, StatusMsg: "登录成功"},
+					UserId:   user.Id,
+					Token:    token,
+				})
 			}
-			c.JSON(http.StatusOK, UserLoginResponse{
-				Response: Response{StatusCode: StatusSuccess, StatusMsg: "登录成功"},
-				UserId:   user.Id,
-				Token:    token,
-			})
 		}
 	}
 }
@@ -90,6 +98,7 @@ func UserInfo(c *gin.Context) {
 		c.JSON(http.StatusOK, UserResponse{
 			Response: Response{StatusCode: StatusFailed, StatusMsg: "查看失败"},
 		})
+		return
 	}
 	// 再查是否关注
 	userB.IsFollow, err = cache.ReadRelation(userAId, userBId)
@@ -98,6 +107,7 @@ func UserInfo(c *gin.Context) {
 		c.JSON(http.StatusOK, UserResponse{
 			Response: Response{StatusCode: StatusFailed, StatusMsg: "查看失败"},
 		})
+		return
 	}
 	c.JSON(http.StatusOK, UserResponse{
 		Response: Response{StatusCode: StatusSuccess},
