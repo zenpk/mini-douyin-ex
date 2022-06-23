@@ -44,6 +44,67 @@ This project has an MVC-like layout, the code is divided into several layers, wh
 
 ![logic](./README/logic.png)
 
+## Database Design
+
+### MySQL
+
+![mysqlERD](./README/mysql.png)
+
+### Redis
+
+![redisDS](./README/redis.png)
+
+## File Layout
+
+```
+mini-douyin
+│
+├───cache
+│       comment.go
+│       favorite.go
+│       rdb_init.go
+│       relation.go
+│       user.go
+│       util.go
+│       video.go
+│
+├───cmd
+│   └───main
+│           main.go
+│
+├───config
+│       const_value.go
+│
+├───controller
+│       jwt.go
+│       router.go
+│
+├───dal
+│       comment.go
+│       db_Init.go
+│       favorite.go
+│       relation.go
+│       user.go
+│       video.go
+│
+├───public
+│   ├───covers
+│   └───videos
+│
+├───service
+│       comment.go
+│       favorite.go
+│       feed.go
+│       jwt.go
+│       publish.go
+│       relation.go
+│       response.go
+│       user.go
+│
+└───util
+        util.go
+```
+
 ## More Information
 
 For more information, please check out [字节跳动青训营——迷你抖音后端功能实现](https://zenpk.vercel.app/mini-douyin)
