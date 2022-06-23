@@ -6,12 +6,21 @@ import (
 	"strconv"
 )
 
+// WriteCommentFromFeed 从视频流中根据每个视频的 id 读取对应的评论列表，用 set 存储
 func WriteCommentFromFeed(videoIdList []int64) error {
 	// 数据库读取评论信息
-	commentList, err := dal.GetCommentByVideoIdList(videoIdList)
-	if err != nil {
-		return err
+	for _, videoId := range videoIdList {
+		commentList, err := dal.GetCommentByVideoId(videoId)
+		if err != nil {
+			return err
+		}
+		// key 值是 videoId 决定的，这样才能方便地查询每个视频的评论列表
+		key := CommentKey(videoId)
+		for _, comment := range commentList {
+
+		}
 	}
+
 	// 写入 Redis
 	for _, comment := range commentList {
 		key := CommentKey(comment.Id)

@@ -60,9 +60,3 @@ func GetCommentByVideoId(videoId int64) ([]Comment, error) {
 	err := DB.Where("video_id = ?", videoId).Find(&commentList).Error
 	return commentList, err
 }
-
-func GetCommentByVideoIdList(videoIdList []int64) ([]Comment, error) {
-	var commentList []Comment
-	err := DB.Where("video_id IN ?", videoIdList).Find(&commentList).Error
-	return commentList, err
-}

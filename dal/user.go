@@ -8,7 +8,7 @@ import (
 type User struct {
 	Id            int64  `json:"id" gorm:"primaryKey"`
 	Name          string `json:"name" gorm:"unique; not null"`
-	Password      string `gorm:"not null"`
+	Password      string `gorm:"not null" redistructhash:"no"`
 	FollowCount   int64  `json:"follow_count"`
 	FollowerCount int64  `json:"follower_count"`
 	IsFollow      bool   `json:"is_follow" gorm:"-:all"` // IsFollow 是根据 relations 表查询得到的，不需要存储
