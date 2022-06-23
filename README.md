@@ -30,7 +30,7 @@ Edit these configs in `config/const_value.go`
 
 #### Download (Android Only)
 
-You can download the client from [here](https://github.com/zenpk/mini-douyin-ex/raw/README/app-release.apk)
+You can download the client from [here](https://github.com/zenpk/mini-douyin-ex/raw/main/README/app-release.apk)
 
 #### Settings
 
