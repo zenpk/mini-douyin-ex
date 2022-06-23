@@ -3,10 +3,10 @@ package cache
 import (
 	"github.com/zenpk/mini-douyin-ex/config"
 	"github.com/zenpk/mini-douyin-ex/dal"
-	"strconv"
 )
 
 // WriteCommentFromFeed 从视频流中根据每个视频的 id 读取对应的评论列表，用 set 存储
+// Comment 本身的内容用 hash 存储
 func WriteCommentFromFeed(videoIdList []int64) error {
 	// 数据库读取评论信息
 	for _, videoId := range videoIdList {
@@ -14,86 +14,119 @@ func WriteCommentFromFeed(videoIdList []int64) error {
 		if err != nil {
 			return err
 		}
-		// key 值是 videoId 决定的，这样才能方便地查询每个视频的评论列表
-		key := CommentKey(videoId)
+		// listKey 值是 videoId 决定的，这样才能方便地查询每个视频的评论列表
+		listKey := CommentListKey(videoId)
 		for _, comment := range commentList {
-
-		}
-	}
-
-	// 写入 Redis
-	for _, comment := range commentList {
-		key := CommentKey(comment.Id)
-		if err := RedisStructHash(comment, key); err != nil {
-			return err
-		}
-		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
-			return err
+			if err := RDB.SAdd(CTX, listKey, comment.Id).Err(); err != nil {
+				return err
+			}
+			if err := RDB.Expire(CTX, listKey, config.RedisExp).Err(); err != nil {
+				return err
+			}
+			// 同时还需要将每个 comment 单独存储在 hash 中
+			key := CommentKey(comment.Id)
+			if err := RedisStructHash(comment, key); err != nil {
+				return err
+			}
+			if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-// ReadComment 读取评论，没有则从数据库写入
+// ReadCommentList 读取视频的评论列表，没有则从数据库写入
 // 还需要同时读取用户信息
-func ReadComment(videoId int64) ([]dal.Comment, error) {
+func ReadCommentList(videoId int64) ([]dal.Comment, error) {
 	var commentList []dal.Comment
-	// 用正则表达式获取全部评论的 key
-	commentKeyList, err := RDB.Keys(CTX, "comment:*").Result()
+	listKey := CommentListKey(videoId)
+	n, err := RDB.Exists(CTX, key).Result()
 	if err != nil {
 		return []dal.Comment{}, err
 	}
-	for _, commentKey := range commentKeyList {
-		videoIdHashStr, err := RDB.HGet(CTX, commentKey, "video_id").Result()
-		if err != nil {
-			return []dal.Comment{}, err
-		}
-		videoIdHash, err := strconv.ParseInt(videoIdHashStr, 10, 64)
-		if err != nil {
-			return []dal.Comment{}, err
-		}
-		if videoIdHash == videoId { // 找到了该视频的评论
-			comment, err := ReadCommentFromHash(commentKey)
-			if err != nil {
-				return []dal.Comment{}, err
-			}
-			commentList = append(commentList, comment)
-		}
-	}
-	// 获取评论的操作一定是在视频读取之后，因此可以很快速地获取到视频相关信息
-	video, err := ReadVideo(videoId)
-	if err != nil {
-		return []dal.Comment{}, err
-	}
-	if int64(len(commentList)) < video.CommentCount { // 评论数不够，由于无法判断少了哪条评论，因此只能重新从数据库中获取
+	if n <= 0 { // 未命中，从数据库中读取并分别写入 set 和 hash
 		commentList, err = dal.GetCommentByVideoId(videoId)
 		if err != nil {
 			return []dal.Comment{}, err
 		}
-		// 将未放入缓存的评论写入缓存
 		for _, comment := range commentList {
-			key := CommentKey(comment.Id)
-			n, err := RDB.Exists(CTX, key).Result()
-			if err != nil {
+			if err := RDB.SAdd(CTX, key, comment.Id).Err(); err != nil {
 				return []dal.Comment{}, err
 			}
-			if n <= 0 { // 没有找到记录，写入缓存
-				if err := RedisStructHash(comment, key); err != nil {
-					return []dal.Comment{}, err
-				}
+			if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+				return []dal.Comment{}, err
 			}
+			commentKey := CommentKey()
 		}
-	}
-	// 对每条评论读取用户信息
-	for _, comment := range commentList {
-		user, err := ReadUser(comment.UserId)
+	} else { // 命中，从 Redis 中读取
+		commentIdStrList, err := RDB.SMembers(CTX, key).Result()
 		if err != nil {
 			return []dal.Comment{}, err
 		}
-		comment.User = user
 	}
-	return commentList, nil
+
 }
+
+// Old version
+//func ReadComment(videoId int64) ([]dal.Comment, error) {
+//	var commentList []dal.Comment
+//	// 用正则表达式获取全部评论的 key
+//	commentKeyList, err := RDB.Keys(CTX, "comment:*").Result()
+//	if err != nil {
+//		return []dal.Comment{}, err
+//	}
+//	for _, commentKey := range commentKeyList {
+//		videoIdHashStr, err := RDB.HGet(CTX, commentKey, "video_id").Result()
+//		if err != nil {
+//			return []dal.Comment{}, err
+//		}
+//		videoIdHash, err := strconv.ParseInt(videoIdHashStr, 10, 64)
+//		if err != nil {
+//			return []dal.Comment{}, err
+//		}
+//		if videoIdHash == videoId { // 找到了该视频的评论
+//			comment, err := ReadCommentFromHash(commentKey)
+//			if err != nil {
+//				return []dal.Comment{}, err
+//			}
+//			commentList = append(commentList, comment)
+//		}
+//	}
+//	// 获取评论的操作一定是在视频读取之后，因此可以很快速地获取到视频相关信息
+//	video, err := ReadVideo(videoId)
+//	if err != nil {
+//		return []dal.Comment{}, err
+//	}
+//	if int64(len(commentList)) < video.CommentCount { // 评论数不够，由于无法判断少了哪条评论，因此只能重新从数据库中获取
+//		commentList, err = dal.GetCommentByVideoId(videoId)
+//		if err != nil {
+//			return []dal.Comment{}, err
+//		}
+//		// 将未放入缓存的评论写入缓存
+//		for _, comment := range commentList {
+//			key := CommentKey(comment.Id)
+//			n, err := RDB.Exists(CTX, key).Result()
+//			if err != nil {
+//				return []dal.Comment{}, err
+//			}
+//			if n <= 0 { // 没有找到记录，写入缓存
+//				if err := RedisStructHash(comment, key); err != nil {
+//					return []dal.Comment{}, err
+//				}
+//			}
+//		}
+//	}
+//	// 对每条评论读取用户信息
+//	for _, comment := range commentList {
+//		user, err := ReadUser(comment.UserId)
+//		if err != nil {
+//			return []dal.Comment{}, err
+//		}
+//		comment.User = user
+//	}
+//	return commentList, nil
+//}
 
 // AddComment 有新评论时，先写入 MySQL 再写入 Redis
 // 需要删除 Redis 中涉及到的视频，采用延迟双删

@@ -30,7 +30,9 @@ func getAndWriteRelation(userId int64) error {
 		if err := RDB.SAdd(CTX, key, id).Err(); err != nil {
 			return err
 		}
-		RDB.Expire(CTX, key, config.RedisExp)
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return err
+		}
 	}
 	// 查找粉丝列表
 	followerList, err := dal.GetFollowerList(userId)
@@ -43,7 +45,9 @@ func getAndWriteRelation(userId int64) error {
 		if err := RDB.SAdd(CTX, key, id).Err(); err != nil {
 			return err
 		}
-		RDB.Expire(CTX, key, config.RedisExp)
+		if err := RDB.Expire(CTX, key, config.RedisExp).Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

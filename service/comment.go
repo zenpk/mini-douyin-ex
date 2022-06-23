@@ -76,7 +76,7 @@ func CommentAction(c *gin.Context) {
 // CommentList 获取评论列表
 func CommentList(c *gin.Context) {
 	videoId := util.QueryId(c, "video_id")
-	if commentList, err := cache.ReadComment(videoId); err != nil {
+	if commentList, err := cache.ReadCommentList(videoId); err != nil {
 		// TODO 进一步读取关注信息？
 		log.Println(err)
 		c.JSON(http.StatusOK, CommentListResponse{
