@@ -104,7 +104,3 @@ mini-douyin
 └───util
         util.go
 ```
-
-## More Information
-
-For more information, please check out [字节跳动青训营——迷你抖音后端功能实现](https://zenpk.vercel.app/mini-douyin)
